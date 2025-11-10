@@ -7,6 +7,15 @@ export const STATUS_QUERY = /* GraphQL */ `
   }
 `;
 
+export const HEALTH_QUERY = /* GraphQL */ `
+  query Health {
+    health {
+      status
+      timestamp
+    }
+  }
+`;
+
 export const GENERATE_MUTATION = /* GraphQL */ `
   mutation GenerateResponse($input: ChatInput!) {
     generateResponse(input: $input) {
@@ -16,4 +25,3 @@ export const GENERATE_MUTATION = /* GraphQL */ `
     }
   }
 `;
-

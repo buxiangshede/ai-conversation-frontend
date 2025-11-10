@@ -7,13 +7,16 @@ type GraphQLResponse<T> = {
   errors?: GraphQLError[];
 };
 
-const endpoint = import.meta.env.VITE_GRAPHQL_ENDPOINT ?? '/graphql';
+const endpoint = import.meta.env.VITE_GRAPHQL_ENDPOINT ?? 'https://api.lsshmx.shop';
 
 export async function requestGraphQL<TData>(
   query: string,
+  path: string,
   variables?: Record<string, unknown>
 ): Promise<TData> {
-  const response = await fetch(endpoint, {
+
+  console.log('GraphQL Endpoint:', path, endpoint);
+  const response = await fetch(`${endpoint}/${path}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -38,4 +41,3 @@ export async function requestGraphQL<TData>(
 
   return result.data;
 }
-

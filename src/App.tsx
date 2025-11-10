@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { requestGraphQL } from './graphql/client';
-import { GENERATE_MUTATION, STATUS_QUERY } from './graphql/queries';
-import type { AIMessage, ServiceStatus } from './graphql/types';
+import { GENERATE_MUTATION, HEALTH_QUERY, STATUS_QUERY } from './graphql/queries';
+import type { AIMessage, HealthStatus, ServiceStatus } from './graphql/types';
 
 type Message = {
   role: 'user' | 'assistant';
@@ -21,24 +21,25 @@ function App() {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState('');
   const [status, setStatus] = useState<ServiceStatus | null>(null);
+  const [healthStatus, setHealthStatus] = useState<HealthStatus | null>(null);
+  const [healthError, setHealthError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+
   useEffect(() => {
-    const fetchStatus = async () => {
+    const fetchHealth = async () => {
       try {
-        const data = await requestGraphQL<{ status: ServiceStatus }>(STATUS_QUERY);
-        setStatus(data.status);
+        const data = await requestGraphQL<{ health: HealthStatus }>(HEALTH_QUERY, 'health');
+        setHealthStatus(data.health);
+        setHealthError(null);
       } catch (err) {
         console.error(err);
-        setStatus({
-          message: '服务状态未知，请稍后再试。',
-          model: undefined
-        });
+        setHealthError('健康检查失败，请稍后再试。');
       }
     };
 
-    fetchStatus();
+    fetchHealth();
   }, []);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -52,7 +53,7 @@ function App() {
     setError(null);
 
     try {
-      const data = await requestGraphQL<{ generateResponse: AIMessage }>(GENERATE_MUTATION, {
+      const data = await requestGraphQL<{ generateResponse: AIMessage }>(GENERATE_MUTATION, 'openai', {
         input: { message: userMessage.content }
       });
       const assistantMessage: Message = {
@@ -76,6 +77,11 @@ function App() {
         <h1>AI Conversation</h1>
         <p className="status">
           {status ? `Cloudflare Worker: ${status.message}（模型：${status.model ?? '未配置'}）` : '正在检查服务状态...'}
+        </p>
+        <p className="status">
+          {healthStatus
+            ? `健康检查：${healthStatus.status}（更新于 ${new Date(healthStatus.timestamp).toLocaleString()}）`
+            : (healthError ?? '正在进行健康检查...')}
         </p>
       </section>
 
@@ -114,4 +120,3 @@ function App() {
 }
 
 export default App;
-
