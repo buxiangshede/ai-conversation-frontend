@@ -1,64 +1,117 @@
 import type { AIMessage, HealthStatus, ServiceStatus } from './types';
 
-const DEFAULT_API_BASE_URL = 'https://api.lsshmx.shop';
+const DEFAULT_GRAPHQL_ENDPOINT = 'https://api.lsshmx.shop/api';
 
-const stripTrailingSlash = (value: string) => value.replace(/\/+$/, '');
-const ensureLeadingSlash = (value: string) => (value.startsWith('/') ? value : `/${value}`);
+const graphqlEndpoint: string =
+  (import.meta.env.VITE_GRAPHQL_ENDPOINT as string | undefined)?.trim() ?? DEFAULT_GRAPHQL_ENDPOINT;
 
-const apiBaseUrl = (() => {
-  const explicitBase =
-    (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ??
-    (import.meta.env.VITE_GRAPHQL_ENDPOINT as string | undefined)?.trim();
-  return explicitBase ? stripTrailingSlash(explicitBase) : DEFAULT_API_BASE_URL;
-})();
+type GraphQLRequestOptions<TVariables extends Record<string, unknown> | undefined = undefined> = {
+  query: string;
+  variables?: TVariables;
+  operationName?: string;
+};
 
-async function request<TResponse>(path: string, init?: RequestInit): Promise<TResponse> {
-  const response = await fetch(`${apiBaseUrl}${ensureLeadingSlash(path)}`, init);
+type GraphQLErrorPayload = {
+  message: string;
+};
+
+type GraphQLResponse<TData> = {
+  data?: TData;
+  errors?: GraphQLErrorPayload[];
+};
+
+async function executeGraphQL<
+  TData,
+  TVariables extends Record<string, unknown> | undefined = undefined
+>(options: GraphQLRequestOptions<TVariables>): Promise<TData> {
+  console.log('GraphQL Request Options------:', graphqlEndpoint);
+  const response = await fetch(graphqlEndpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(options)
+  });
 
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(
-      `Request to ${path} failed with status ${response.status}${errorText ? `: ${errorText}` : ''}`
+      `GraphQL request failed with status ${response.status}${errorText ? `: ${errorText}` : ''}`
     );
   }
 
-  if (response.status === 204) {
-    return {} as TResponse;
+  const result = (await response.json()) as GraphQLResponse<TData>;
+  if (result.errors?.length) {
+    const details = result.errors.map((error) => error.message).join('; ');
+    throw new Error(`GraphQL errors: ${details}`);
   }
 
-  return (await response.json()) as TResponse;
+  if (!result.data) {
+    throw new Error('GraphQL response did not include `data`.');
+  }
+
+  return result.data;
 }
 
-type WorkerHealthResponse = {
-  message: string;
-  model?: string | null;
+type StatusQueryResult = {
+  status: ServiceStatus;
 };
+
+const STATUS_QUERY = /* GraphQL */ `
+  query Status {
+    status {
+      message
+      model
+    }
+  }
+`;
 
 export async function fetchWorkerHealth(): Promise<{
   status: ServiceStatus;
   health: HealthStatus;
 }> {
-  const data = await request<WorkerHealthResponse>('/health');
-  const status: ServiceStatus = {
-    message: data.message,
-    model: data.model ?? null
-  };
+  const data = await executeGraphQL<StatusQueryResult>({
+    query: STATUS_QUERY,
+    operationName: 'Status'
+  });
 
+  const status = data.status;
   const health: HealthStatus = {
-    status: data.message,
+    status: status.message,
     timestamp: new Date().toISOString()
   };
 
   return { status, health };
 }
 
+type GenerateResponseVariables = {
+  input: {
+    message: string;
+  };
+};
+
+type GenerateResponseResult = {
+  generateResponse: AIMessage;
+};
+
+const GENERATE_RESPONSE_MUTATION = /* GraphQL */ `
+  mutation GenerateResponse($input: ChatInput!) {
+    generateResponse(input: $input) {
+      content
+      model
+      finishReason
+    }
+  }
+`;
+
 export async function generateAIResponse(message: string): Promise<AIMessage> {
-  const payload = JSON.stringify({ message });
-  return request<AIMessage>('/openai', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: payload
+  const data = await executeGraphQL<GenerateResponseResult, GenerateResponseVariables>({
+    query: GENERATE_RESPONSE_MUTATION,
+    operationName: 'GenerateResponse',
+    variables: {
+      input: { message }
+    }
   });
+
+  return data.generateResponse;
 }
