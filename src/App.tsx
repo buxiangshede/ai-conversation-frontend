@@ -1,7 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { requestGraphQL } from './graphql/client';
-import { GENERATE_MUTATION, HEALTH_QUERY, STATUS_QUERY } from './graphql/queries';
-import type { AIMessage, HealthStatus, ServiceStatus } from './graphql/types';
+import { fetchWorkerHealth, generateAIResponse } from './api/client';
+import type { HealthStatus, ServiceStatus } from './api/types';
 
 type Message = {
   role: 'user' | 'assistant';
@@ -26,20 +25,24 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-
   useEffect(() => {
-    const fetchHealth = async () => {
+    const fetchStatusAndHealth = async () => {
       try {
-        const data = await requestGraphQL<{ health: HealthStatus }>(HEALTH_QUERY, 'health');
-        setHealthStatus(data.health);
+        const { status: serviceStatus, health } = await fetchWorkerHealth();
+        setStatus(serviceStatus);
+        setHealthStatus(health);
         setHealthError(null);
       } catch (err) {
         console.error(err);
+        setStatus({
+          message: '服务状态未知，请稍后再试。',
+          model: undefined
+        });
         setHealthError('健康检查失败，请稍后再试。');
       }
     };
 
-    fetchHealth();
+    fetchStatusAndHealth();
   }, []);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -53,14 +56,12 @@ function App() {
     setError(null);
 
     try {
-      const data = await requestGraphQL<{ generateResponse: AIMessage }>(GENERATE_MUTATION, 'openai', {
-        input: { message: userMessage.content }
-      });
+      const data = await generateAIResponse(userMessage.content);
       const assistantMessage: Message = {
         role: 'assistant',
-        content: data.generateResponse.content,
-        model: data.generateResponse.model,
-        finishReason: data.generateResponse.finishReason
+        content: data.content,
+        model: data.model,
+        finishReason: data.finishReason
       };
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (err) {
