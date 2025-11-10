@@ -72,50 +72,69 @@ function App() {
     }
   };
 
+  const healthTimestamp = healthStatus ? new Date(healthStatus.timestamp).toLocaleString() : null;
+
   return (
     <div className="app-shell">
-      <section className="card">
-        <h1>AI Conversation</h1>
-        <p className="status">
-          {status ? `Cloudflare Worker: ${status.message}（模型：${status.model ?? '未配置'}）` : '正在检查服务状态...'}
-        </p>
-        <p className="status">
-          {healthStatus
-            ? `健康检查：${healthStatus.status}（更新于 ${new Date(healthStatus.timestamp).toLocaleString()}）`
-            : (healthError ?? '正在进行健康检查...')}
-        </p>
-      </section>
+      <header className="hero-card">
+        <div className="hero-copy">
+          <p className="hero-kicker">Neural Interface</p>
+          <h1>AI Conversation Console</h1>
+          <p className="hero-subtitle">与自定义 AI Worker 实时沟通，体验带有量子流光的未来对话面板。</p>
+        </div>
+        <div className="hero-status">
+          <div className="status-chip">
+            <span className="status-label">Cloudflare Worker</span>
+            <strong>{status ? status.message : '正在连接...'}</strong>
+            <small>模型：{status?.model ?? '未配置'}</small>
+          </div>
+          <div className="status-chip">
+            <span className="status-label">系统健康</span>
+            <strong>{healthStatus ? healthStatus.status : healthError ?? '检查中...'}</strong>
+            <small>{healthTimestamp ? `更新于 ${healthTimestamp}` : '等待最新信号'}</small>
+          </div>
+        </div>
+      </header>
 
-      <section className="card messages" aria-live="polite">
-        {messages.map((message, idx) => (
-          <article key={idx} className={`message ${message.role}`}>
-            <strong>{message.role === 'user' ? '你' : 'AI'}</strong>
-            <div>{message.content}</div>
-            {message.model && (
-              <small>
-                模型：{message.model}
-                {message.finishReason ? ` · ${message.finishReason}` : ''}
-              </small>
-            )}
-          </article>
-        ))}
-        {error && <p className="error">{error}</p>}
-      </section>
+      <main className="chat-deck">
+        <section className="message-surface" aria-live="polite">
+          <div className="message-stream">
+            {messages.map((message, idx) => (
+              <article key={idx} className={`message-card ${message.role}`}>
+                <div className="message-meta">
+                  <span>{message.role === 'user' ? '来 自 你' : '来自 AI Core'}</span>
+                  {message.model && (
+                    <span className="message-model">
+                      {message.model}
+                      {message.finishReason ? ` · ${message.finishReason}` : ''}
+                    </span>
+                  )}
+                </div>
+                <p>{message.content}</p>
+              </article>
+            ))}
+          </div>
+          {error && <p className="error-banner">{error}</p>}
+        </section>
 
-      <section className="card">
-        <form onSubmit={handleSubmit}>
-          <textarea
-            name="prompt"
-            placeholder="输入你的问题..."
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            disabled={loading}
-          />
-          <button type="submit" disabled={loading}>
-            {loading ? '生成中...' : '发送'}
-          </button>
-        </form>
-      </section>
+        <section className="composer-panel">
+          <form onSubmit={handleSubmit}>
+            <textarea
+              name="prompt"
+              placeholder="输入你的问题，Shift + Enter 换行..."
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              disabled={loading}
+            />
+            <div className="composer-actions">
+              <span className="hint-dot">实时直连 · 无中间层</span>
+              <button type="submit" disabled={loading}>
+                {loading ? '生成中...' : '发送指令'}
+              </button>
+            </div>
+          </form>
+        </section>
+      </main>
     </div>
   );
 }
